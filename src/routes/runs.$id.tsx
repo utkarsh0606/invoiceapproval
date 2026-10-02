@@ -2,6 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Circle, LoaderCircle, Minus, RefreshCw, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { API_BASE_URL } from "@/config";
+import { InvoiceDetails } from "@/components/InvoiceDetails";
 
 export const Route = createFileRoute("/runs/$id")({
   head: ({ params }) => ({
@@ -122,6 +125,7 @@ function RunPage() {
             <DecisionCard run={run} stages={stages} explanation={explanation} />
             <Pipeline stages={stages} />
             {rules.length > 0 && <RulesTable rules={rules} deciding={deciding} />}
+            <InvoiceDetails outputs={Object.fromEntries(stages.map((s) => [s.stage_name, s.output_data]))} />
           </>
         )}
       </div>
@@ -140,8 +144,34 @@ function Header({ run }: { run: Run }) {
         {run.extraction_path === "vision" && <span className="signal-badge">Scanned image (AI read the page image)</span>}
         {run.used_cache && <span className="signal-badge" title="The AI's earlier reading of this exact file was reused">Saved AI reading</span>}
         {run.match_type === "implied" && <span className="signal-badge">PO implied, not printed</span>}
+        <PdfButton id={run.id} />
       </div>
     </header>
+  );
+}
+
+function PdfButton({ id }: { id: string }) {
+  const [busy, setBusy] = useState(false);
+  const open = async () => {
+    setBusy(true);
+    const win = window.open("", "_blank");
+    try {
+      const res = await fetch(`${API_BASE_URL}/runs/${encodeURIComponent(id)}/pdf`);
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.url) {
+        win?.close();
+        toast.error(body?.detail ? (typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail)) : `Request failed (${res.status})`);
+      } else if (win) win.location.href = body.url;
+      else window.open(body.url, "_blank");
+    } catch (e) {
+      win?.close();
+      toast.error(e instanceof Error ? e.message : "Could not reach the API");
+    } finally { setBusy(false); }
+  };
+  return (
+    <button onClick={() => void open()} disabled={busy} className="ml-auto inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60">
+      {busy && <LoaderCircle className="size-4 animate-spin" />}View original PDF
+    </button>
   );
 }
 
