@@ -37,6 +37,7 @@
   --color-code-muted: var(--code-muted);
   --color-code-border: var(--code-border);
   --color-reject-soft: var(--reject-soft);
+  --color-running: var(--running);
 }
 
 :root {
@@ -67,6 +68,7 @@
   --code-muted: oklch(0.7 0.01 286);
   --code-border: oklch(0.3 0.01 286);
   --reject-soft: oklch(0.76 0.12 25);
+  --running: oklch(0.55 0.17 255);
 }
 
 @layer base {
