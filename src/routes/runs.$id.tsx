@@ -99,7 +99,7 @@ function RunPage() {
   }, [trigger, fetchRules]);
 
   const explanation = asObj(stages.find((s) => s.stage_name === "explanation")?.output_data);
-  const deciding = asList(explanation?.deciding_rules).map(String);
+  const deciding = asList(explanation?.["deciding_rules"]).map(String);
 
   return (
     <main className="min-h-screen bg-background px-5 py-10 text-foreground sm:px-8 lg:px-12 lg:py-14">
@@ -168,16 +168,16 @@ function DecisionCard({ run, stages, explanation }: { run: Run; stages: Stage[];
     );
   }
   const d = (run.decision ?? "none").toLowerCase();
-  const check = asList(explanation?.what_to_check);
-  const also = asList(explanation?.also);
+  const check = asList(explanation?.["what_to_check"]);
+  const also = asList(explanation?.["also"]);
   const color = d === "approve" ? "border-approve" : d === "review" ? "border-review" : d === "reject" ? "border-reject" : "border-neutral-status";
   return (
     <section className={`mt-8 rounded-lg border-2 ${color} bg-surface p-6 sm:p-8`}>
       <span className={`decision-badge decision-${["approve", "review", "reject"].includes(d) ? d : "none"} !min-w-0 !px-5 !py-2 !text-xl`}>{run.decision ?? "NO DECISION"}</span>
       {explanation ? (
         <div className="mt-5 space-y-3">
-          {explanation.headline != null && <p className="text-lg font-bold">{String(explanation.headline)}</p>}
-          {explanation.context != null && <p className="text-sm leading-6">{String(explanation.context)}</p>}
+          {explanation["headline"] != null && <p className="text-lg font-bold">{String(explanation["headline"])}</p>}
+          {explanation["context"] != null && <p className="text-sm leading-6">{String(explanation["context"])}</p>}
           {check.length > 0 && (
             <div className="pt-2">
               <h3 className="text-sm font-semibold">What the reviewer should check</h3>
@@ -239,7 +239,7 @@ function StageRow({ stage, now }: { stage: Stage; now: number }) {
   let dur: string | null = null;
   if (stage.started_at && stage.finished_at) dur = `${((+new Date(stage.finished_at) - +new Date(stage.started_at)) / 1000).toFixed(1)}s`;
   else if (stage.status === "running" && stage.started_at) dur = `${Math.max(0, (now - +new Date(stage.started_at)) / 1000).toFixed(1)}s`;
-  const fallback = stage.stage_name === "ai_extraction" && asObj(stage.output_data)?.source === "cache_fallback";
+  const fallback = stage.stage_name === "ai_extraction" && asObj(stage.output_data)?.["source"] === "cache_fallback";
   return (
     <li className="border-b border-border last:border-b-0">
       <button onClick={() => setOpen(!open)} className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-muted">
