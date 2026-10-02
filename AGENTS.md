@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- The app is frontend-only: call the existing API directly and use the configured Supabase browser client only for read-only run data and realtime updates.
