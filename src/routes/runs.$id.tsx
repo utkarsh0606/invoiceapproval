@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { API_BASE_URL } from "@/config";
 import { InvoiceDetails } from "@/components/InvoiceDetails";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/runs/$id")({
   head: ({ params }) => ({
@@ -30,6 +32,11 @@ type Stage = {
   message: string | null; started_at: string | null; finished_at: string | null;
 };
 type Rule = { rule_order: number; rule_name: string; status: string; expected_value: Json; actual_value: Json; message: string | null };
+type ReviewAction = {
+  id: number; action: "approve" | "reject"; reviewer: string; reason: string;
+  previous_status: string | null; new_status: string | null; created_at: string;
+};
+type Ledger = { id: string; status: string; vendor_id: string | null; po_id: string | null };
 
 const STAGE_LABELS: Record<string, string> = {
   intake: "Receive file", text_extraction: "Read text layer", ai_extraction: "AI reads the invoice", normalization: "Standardize values",
@@ -43,16 +50,25 @@ const RULE_LABELS: Record<string, string> = {
   po_balance_check: "Fits PO remaining balance", duplicate_check: "Not a duplicate", implied_match_flag: "PO printed (not inferred)",
 };
 
+// Reviewer secret and name are kept only for this browser tab (sessionStorage), never in the code.
+const SECRET_KEY = "zampReviewerSecret";
+const NAME_KEY = "zampReviewerName";
+const MIN_REASON = 5; // the backend enforces the same minimum
+
 const asObj = (v: Json): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const asList = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const show = (v: Json) => (v === null || v === undefined ? "—" : typeof v === "string" ? v : JSON.stringify(v));
 const fmtTime = (s: string) => new Date(s).toLocaleString();
+const humanLabel = (a: ReviewAction["action"]) => (a === "approve" ? "APPROVED" : "REJECTED");
+const humanTone = (a: ReviewAction["action"]) => (a === "approve" ? "decision-approve" : "decision-reject");
 
 function RunPage() {
   const { id } = Route.useParams();
   const [run, setRun] = useState<Run | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
+  const [action, setAction] = useState<ReviewAction | null>(null);
+  const [ledger, setLedger] = useState<Ledger | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -76,12 +92,23 @@ function RunPage() {
     else setRules((data ?? []) as Rule[]);
   }, [id]);
 
+  const fetchReview = useCallback(async () => {
+    const [a, l] = await Promise.all([
+      supabase.from("review_actions").select("*").eq("run_id", id).limit(1),
+      supabase.from("invoices").select("id,status,vendor_id,po_id").eq("run_id", id).limit(1),
+    ]);
+    if (a.error) return setError(a.error.message);
+    if (l.error) return setError(l.error.message);
+    setAction((((a.data ?? [])[0] as ReviewAction | undefined) ?? null));
+    setLedger((((l.data ?? [])[0] as Ledger | undefined) ?? null));
+  }, [id]);
+
   const refreshAll = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchRunAndStages(), fetchRules()]);
+    await Promise.all([fetchRunAndStages(), fetchRules(), fetchReview()]);
     setRefreshing(false);
     setLoading(false);
-  }, [fetchRunAndStages, fetchRules]);
+  }, [fetchRunAndStages, fetchRules, fetchReview]);
 
   useEffect(() => {
     void refreshAll();
@@ -89,17 +116,18 @@ function RunPage() {
       .channel(`run-${id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "runs", filter: `id=eq.${id}` }, () => void fetchRunAndStages())
       .on("postgres_changes", { event: "*", schema: "public", table: "run_stages", filter: `run_id=eq.${id}` }, () => void fetchRunAndStages())
+      .on("postgres_changes", { event: "*", schema: "public", table: "review_actions", filter: `run_id=eq.${id}` }, () => void fetchReview())
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [id, refreshAll, fetchRunAndStages]);
+  }, [id, refreshAll, fetchRunAndStages, fetchReview]);
 
-  // Re-fetch rules when rules stage finishes or run terminates
+  // Re-fetch rules (and the ledger row) when the rules stage finishes or the run terminates
   const rulesStatus = stages.find((s) => s.stage_name === "rules")?.status;
   const trigger = `${rulesStatus === "done" || rulesStatus === "warn" ? "rules-ok" : ""}|${run?.status === "completed" || run?.status === "failed" ? run.status : ""}`;
   const lastTrigger = useRef(trigger);
   useEffect(() => {
-    if (trigger !== lastTrigger.current) { lastTrigger.current = trigger; void fetchRules(); }
-  }, [trigger, fetchRules]);
+    if (trigger !== lastTrigger.current) { lastTrigger.current = trigger; void fetchRules(); void fetchReview(); }
+  }, [trigger, fetchRules, fetchReview]);
 
   const explanation = asObj(stages.find((s) => s.stage_name === "explanation")?.output_data);
   const deciding = asList(explanation?.["deciding_rules"]).map(String);
@@ -122,7 +150,10 @@ function RunPage() {
           <>
             {error && <div className="error-inline mt-6">{error}</div>}
             <Header run={run} />
-            <DecisionCard run={run} stages={stages} explanation={explanation} />
+            <DecisionCard run={run} stages={stages} explanation={explanation} action={action} />
+            {run.status === "completed" && run.decision === "REVIEW" && (
+              action ? <ResolvedCard action={action} /> : <ReviewPanel run={run} ledger={ledger} onResolved={() => void fetchReview()} />
+            )}
             <Pipeline stages={stages} />
             {rules.length > 0 && <RulesTable rules={rules} deciding={deciding} />}
             <InvoiceDetails outputs={Object.fromEntries(stages.map((s) => [s.stage_name, s.output_data]))} />
@@ -175,7 +206,7 @@ function PdfButton({ id }: { id: string }) {
   );
 }
 
-function DecisionCard({ run, stages, explanation }: { run: Run; stages: Stage[]; explanation: Record<string, unknown> | null }) {
+function DecisionCard({ run, stages, explanation, action }: { run: Run; stages: Stage[]; explanation: Record<string, unknown> | null; action: ReviewAction | null }) {
   if (run.status === "failed") {
     return (
       <section className="mt-8 rounded-lg border-2 border-reject bg-surface p-6">
@@ -203,7 +234,15 @@ function DecisionCard({ run, stages, explanation }: { run: Run; stages: Stage[];
   const color = d === "approve" ? "border-approve" : d === "review" ? "border-review" : d === "reject" ? "border-reject" : "border-neutral-status";
   return (
     <section className={`mt-8 rounded-lg border-2 ${color} bg-surface p-6 sm:p-8`}>
-      <span className={`decision-badge decision-${["approve", "review", "reject"].includes(d) ? d : "none"} !min-w-0 !px-5 !py-2 !text-xl`}>{run.decision ?? "NO DECISION"}</span>
+      <p className="section-kicker mb-3">Automated decision</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className={`decision-badge decision-${["approve", "review", "reject"].includes(d) ? d : "none"} !min-w-0 !px-5 !py-2 !text-xl`}>{run.decision ?? "NO DECISION"}</span>
+        {action && (
+          <span className="inline-flex items-center gap-2 text-sm font-medium">
+            → human decision <span className={`decision-badge ${humanTone(action.action)} !min-w-0`}>{humanLabel(action.action)}</span>
+          </span>
+        )}
+      </div>
       {explanation ? (
         <div className="mt-5 space-y-3">
           {explanation["headline"] != null && <p className="text-lg font-bold">{String(explanation["headline"])}</p>}
@@ -224,6 +263,150 @@ function DecisionCard({ run, stages, explanation }: { run: Run; stages: Stage[];
       ) : (
         <p className="mt-5 text-sm leading-6">{run.summary ?? "No summary available."}</p>
       )}
+    </section>
+  );
+}
+
+function ResolvedCard({ action }: { action: ReviewAction }) {
+  return (
+    <section className="mt-6 rounded-lg border border-border bg-surface p-6">
+      <p className="section-kicker">Human in the loop</p>
+      <h2 className="section-title">Reviewer decision</h2>
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-muted-foreground">System</span>
+        <span className="decision-badge decision-review !min-w-0">REVIEW</span>
+        <span className="text-muted-foreground">→ Human</span>
+        <span className={`decision-badge ${humanTone(action.action)} !min-w-0`}>{humanLabel(action.action)}</span>
+        <span>by <strong>{action.reviewer}</strong></span>
+      </div>
+      <p className="mt-3 text-sm"><span className="font-medium">Reason:</span> “{action.reason}”</p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {fmtTime(action.created_at)} · ledger status: {action.previous_status ?? "no ledger record"}
+        {action.new_status ? ` → ${action.new_status}` : ""} · the automated decision is kept unchanged
+      </p>
+    </section>
+  );
+}
+
+function ReviewPanel({ run, ledger, onResolved }: { run: Run; ledger: Ledger | null; onResolved: () => void }) {
+  const [reviewer, setReviewer] = useState("");
+  const [reason, setReason] = useState("");
+  const [pending, setPending] = useState<"approve" | "reject" | null>(null);
+  const [secret, setSecret] = useState("");
+  const [needSecret, setNeedSecret] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // Browser storage only exists in the browser (this page is also rendered on the server).
+  useEffect(() => { setReviewer(sessionStorage.getItem(NAME_KEY) ?? ""); }, []);
+
+  const ready = reviewer.trim().length > 0 && reason.trim().length >= MIN_REASON;
+  const approveBlock = !ledger
+    ? "No ledger record (the invoice number or total is missing), so there is nothing to pay. This run can only be rejected."
+    : ledger.status !== "review"
+      ? `The ledger invoice is already ${ledger.status}.`
+      : !ledger.vendor_id
+        ? "No known vendor is attached: an unknown payee is never paid. Onboard the vendor first, or reject."
+        : !ledger.po_id
+          ? "No purchase order is attached. Assign the PO first, or reject."
+          : null;
+
+  const openConfirm = (a: "approve" | "reject") => {
+    const stored = sessionStorage.getItem(SECRET_KEY) ?? "";
+    setSecret(stored);
+    setNeedSecret(!stored);
+    setPending(a);
+  };
+
+  const submit = async () => {
+    if (!pending) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/runs/${encodeURIComponent(run.id)}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Reviewer-Secret": secret },
+        body: JSON.stringify({ action: pending, reviewer: reviewer.trim(), reason: reason.trim() }),
+      });
+      const body = (await res.json().catch(() => null)) as { detail?: unknown; message?: string } | null;
+      if (!res.ok) {
+        const d = body?.detail;
+        const text = d ? (typeof d === "string" ? d : JSON.stringify(d)) : `Request failed (${res.status})`;
+        if (res.status === 403) {
+          sessionStorage.removeItem(SECRET_KEY);
+          setSecret("");
+          setNeedSecret(true);
+          toast.error("Wrong reviewer secret. Enter it again.");
+          return; // keep the dialog open so the reviewer can retry
+        }
+        toast.error(text);
+        setPending(null);
+        if (res.status === 409) onResolved(); // the state changed elsewhere: show the latest
+        return;
+      }
+      sessionStorage.setItem(SECRET_KEY, secret);
+      sessionStorage.setItem(NAME_KEY, reviewer.trim());
+      toast.success(body?.message ?? "Decision recorded");
+      setPending(null);
+      onResolved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not reach the API");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const inputClass = "mt-1.5 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+
+  return (
+    <section className="mt-6 rounded-lg border-2 border-review bg-surface p-6">
+      <p className="section-kicker">Human in the loop</p>
+      <h2 className="section-title">Reviewer decision</h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        The automated decision stays REVIEW. Your decision and reason are recorded in the audit trail, and an approval updates the PO balance.
+      </p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+        <div>
+          <label className="text-sm font-medium" htmlFor="reviewer-name">Your name</label>
+          <input id="reviewer-name" value={reviewer} onChange={(e) => setReviewer(e.target.value)} autoComplete="name" className={`${inputClass} h-10`} />
+        </div>
+        <div>
+          <label className="text-sm font-medium" htmlFor="review-reason">Reason (required)</label>
+          <textarea id="review-reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Procurement confirmed the PO was increased" className={`${inputClass} py-2`} />
+          {reason.trim().length > 0 && reason.trim().length < MIN_REASON && (
+            <p className="mt-1 text-xs text-muted-foreground">At least {MIN_REASON} characters.</p>
+          )}
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button disabled={!ready || !!approveBlock || busy} onClick={() => openConfirm("approve")}>Approve for payment</Button>
+        <Button variant="destructive" disabled={!ready || busy} onClick={() => openConfirm("reject")}>Reject</Button>
+      </div>
+      {approveBlock && <p className="mt-3 text-sm text-muted-foreground">Approve is not available: {approveBlock}</p>}
+
+      <Dialog open={pending !== null} onOpenChange={(o) => !o && !busy && setPending(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{pending === "approve" ? "Approve this invoice for payment?" : "Reject this invoice?"}</DialogTitle>
+            <DialogDescription>This will be recorded in the audit trail. The automated decision stays REVIEW.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); if (secret) void submit(); }}>
+            <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+              <span className="font-semibold">{pending === "approve" ? "APPROVE" : "REJECT"}</span> by <strong>{reviewer.trim()}</strong>: “{reason.trim()}”
+            </div>
+            {needSecret && (
+              <div className="mt-4">
+                <label className="text-sm font-medium" htmlFor="reviewer-secret">Reviewer secret</label>
+                <input id="reviewer-secret" type="password" autoComplete="off" autoFocus value={secret} onChange={(e) => setSecret(e.target.value)} className={`${inputClass} h-10`} />
+              </div>
+            )}
+            <DialogFooter className="mt-5">
+              <Button type="button" variant="outline" disabled={busy} onClick={() => setPending(null)}>Cancel</Button>
+              <Button type="submit" variant={pending === "reject" ? "destructive" : "default"} disabled={busy || !secret}>
+                {busy && <LoaderCircle className="size-4 animate-spin" />}{pending === "approve" ? "Approve" : "Reject"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
