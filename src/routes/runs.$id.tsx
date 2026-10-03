@@ -37,7 +37,7 @@ const STAGE_LABELS: Record<string, string> = {
   explanation: "Explain the decision", persist: "Save to ledger",
 };
 const RULE_LABELS: Record<string, string> = {
-  is_invoice: "Document is an invoice", required_fields: "Required fields present", math_consistency: "Amounts add up", evidence_check: "Values found in PDF text",
+  is_invoice: "Document is an invoice", required_fields: "Required fields present", math_consistency: "Amounts add up", evidence_check: "Values found in PDF text", invoice_date_check: "Invoice date not in the future",
   vendor_known: "Vendor on vendor list", vendor_active: "Vendor is active", po_found: "Purchase order found",
   po_belongs_to_vendor: "PO belongs to this vendor", po_open: "PO is open", currency_match: "Currency matches PO",
   po_balance_check: "Fits PO remaining balance", duplicate_check: "Not a duplicate", implied_match_flag: "PO printed (not inferred)",

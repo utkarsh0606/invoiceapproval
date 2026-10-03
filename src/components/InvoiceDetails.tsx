@@ -94,8 +94,8 @@ function ReadCard({ text: tx, ai, norm }: { text: O | null; ai: O | null; norm: 
                   return (
                     <tr key={f} className={`border-b border-border last:border-b-0 ${differs ? "bg-review/10" : ""}`}>
                       <td className="font-medium">{f}</td>
-                      <td className="break-all">{ex ? <Val v={a} /> : <span className="text-muted-foreground">Not available yet</span>}</td>
-                      <td className="break-all">{norm ? <Val v={b} /> : <span className="text-muted-foreground">Not available yet</span>}</td>
+                      <td className="break-words">{ex ? <Val v={a} /> : <span className="text-muted-foreground">Not available yet</span>}</td>
+                      <td className="break-words">{norm ? <Val v={b} /> : <span className="text-muted-foreground">Not available yet</span>}</td>
                     </tr>
                   );
                 })}
