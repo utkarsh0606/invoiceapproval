@@ -68,7 +68,7 @@ function ReadCard({ text: tx, ai, norm }: { text: O | null; ai: O | null; norm: 
   const notes = list(norm?.["notes"]).map(String);
   const isCaseOnly = (n: string) => {
     const m = n.match(/'(.*)'\s*->\s*'(.*)'/);
-    return !!m && m[1].toLowerCase() === m[2].toLowerCase();
+    return !!m && (m[1] ?? "").toLowerCase() === (m[2] ?? "").toLowerCase();
   };
   const caseOnly = notes.filter(isCaseOnly);
   const real = notes.filter((n) => !isCaseOnly(n));
