@@ -53,7 +53,14 @@ function ReadCard({ text: tx, ai, norm }: { text: O | null; ai: O | null; norm: 
   const sourceLabel: Record<string, string> = { gemini: "Read live by the AI", cache: "Saved AI reading of this exact file", cache_fallback: "AI unavailable - saved reading used" };
 
   const currencyStd = norm && !isNil(norm["currency"]) ? `${norm["currency"]}${isNil(norm["currency_kind"]) ? "" : ` (${norm["currency_kind"]})`}` : null;
+  const docType = (src: O | null) => {
+    const t = text(src?.["document_type"]);
+    const title = text(src?.["document_title"]);
+    if (!t && !title) return "not read (older saved reading)";
+    return `${t ?? "—"}${title ? ` ("${title}")` : ""}`;
+  };
   const rows: [string, string | null, string | null][] = [
+    ["Document type", docType(ex), docType(norm)],
     ["Vendor", text(ex?.["vendor_name"]), text(norm?.["vendor_name"])],
     ["Invoice number", text(ex?.["invoice_number"]), text(norm?.["cleaned_invoice_number"])],
     ["Invoice date", text(ex?.["invoice_date"]), text(norm?.["invoice_date"])],
