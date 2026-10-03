@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileText, LoaderCircle, RefreshCw, UploadCloud } from "lucide-react";
+import { FileText, LoaderCircle, RefreshCw, Search, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { API_BASE_URL } from "@/config";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { ResetDemoButton } from "@/components/ResetDemoButton";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -55,6 +56,8 @@ function Dashboard() {
   const [samplesError, setSamplesError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [filter, setFilter] = useState<"ALL" | "APPROVE" | "REVIEW" | "REJECT" | "FAILED">("ALL");
+  const [query, setQuery] = useState("");
 
   const checkHealth = useCallback(async () => {
     setApiState("waking");
@@ -151,6 +154,15 @@ function Dashboard() {
     [runs],
   );
 
+  const visibleRuns = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return runs.filter((run) => {
+      if (filter === "FAILED" ? run.status !== "failed" : filter !== "ALL" && run.decision !== filter) return false;
+      if (!q) return true;
+      return (run.file_name ?? "").toLowerCase().includes(q) || (run.summary ?? "").toLowerCase().includes(q);
+    });
+  }, [runs, filter, query]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border bg-surface">
@@ -162,7 +174,8 @@ function Dashboard() {
               <p className="mt-1 text-sm text-muted-foreground">PDF invoice in → APPROVE / REVIEW / REJECT with reasons out</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 self-start lg:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+            <ResetDemoButton onDone={() => { void loadRuns(); void loadSamples(); void checkHealth(); }} />
             <span className={`status-pill api-${apiState}`}>
               <span className="status-dot" />
               {apiState === "waking" ? "API waking up..." : apiState === "online" ? "API online" : "API unreachable"}
@@ -231,13 +244,26 @@ function Dashboard() {
 
         <section className="mt-10" aria-labelledby="history-title">
           <div className="mb-5 flex items-end justify-between"><div><p className="section-kicker">Latest activity</p><h2 id="history-title" className="section-title">Run history</h2></div><span className="text-xs text-muted-foreground">Last 50 runs · live</span></div>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filter runs">
+              {([["ALL", "All", runs.length], ["APPROVE", "Approve", counts.APPROVE], ["REVIEW", "Review", counts.REVIEW], ["REJECT", "Reject", counts.REJECT], ["FAILED", "Failed", counts.FAILED]] as const).map(([key, label, n]) => (
+                <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)} className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors ${filter === key ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface hover:bg-muted"}`}>
+                  {label}<span className="font-mono opacity-75">{n}</span>
+                </button>
+              ))}
+            </div>
+            <label className="relative block sm:w-72">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search file name or summary" aria-label="Search runs" className="h-9 w-full rounded-md border border-input bg-surface pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            </label>
+          </div>
           <div className="overflow-hidden rounded-lg border border-border bg-surface">
             {runsError ? <div className="error-inline m-5"><span>{runsError}</span><Button size="sm" variant="outline" onClick={() => void loadRuns()}>Retry</Button></div> : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[900px] border-collapse text-left text-sm">
                   <thead><tr className="border-b border-border bg-muted/60 text-[11px] uppercase text-muted-foreground"><th>Time</th><th>File name</th><th>Status</th><th>Decision</th><th>Summary</th><th>Signals</th></tr></thead>
                   <tbody>
-                    {runs.length === 0 ? <tr><td colSpan={6} className="h-28 text-center text-muted-foreground">No runs found</td></tr> : runs.map((run) => (
+                    {visibleRuns.length === 0 ? <tr><td colSpan={6} className="h-28 text-center text-muted-foreground">{runs.length === 0 ? "No runs found" : "No runs match these filters"}</td></tr> : visibleRuns.map((run) => (
                       <tr key={run.id} tabIndex={0} className="cursor-pointer border-b border-border/70 transition-colors last:border-0 hover:bg-muted/45 focus-visible:bg-muted focus-visible:outline-none" onClick={() => void navigate({ to: "/runs/$id", params: { id: run.id } })} onKeyDown={(event) => { if (event.key === "Enter") void navigate({ to: "/runs/$id", params: { id: run.id } }); }}>
                         <td className="font-mono text-xs text-muted-foreground">{new Date(run.created_at).toLocaleTimeString()}</td>
                         <td><span className="block max-w-56 truncate font-medium" title={run.file_name}>{run.file_name}</span></td>

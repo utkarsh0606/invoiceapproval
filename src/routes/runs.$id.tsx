@@ -37,7 +37,7 @@ const STAGE_LABELS: Record<string, string> = {
   explanation: "Explain the decision", persist: "Save to ledger",
 };
 const RULE_LABELS: Record<string, string> = {
-  required_fields: "Required fields present", math_consistency: "Amounts add up", evidence_check: "Values found in PDF text",
+  is_invoice: "Document is an invoice", required_fields: "Required fields present", math_consistency: "Amounts add up", evidence_check: "Values found in PDF text",
   vendor_known: "Vendor on vendor list", vendor_active: "Vendor is active", po_found: "Purchase order found",
   po_belongs_to_vendor: "PO belongs to this vendor", po_open: "PO is open", currency_match: "Currency matches PO",
   po_balance_check: "Fits PO remaining balance", duplicate_check: "Not a duplicate", implied_match_flag: "PO printed (not inferred)",
@@ -308,9 +308,9 @@ function RulesTable({ rules, deciding }: { rules: Rule[]; deciding: string[] }) 
       <h2 className="section-title">Rule results</h2>
       <p className="mt-2 text-sm text-muted-foreground">{c("PASS")} pass, {c("WARN")} warn, {c("FAIL")} fail, {c("SKIP")} not applicable</p>
       <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-surface">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[960px] table-fixed text-left text-sm">
           <thead className="border-b border-border bg-muted text-xs uppercase text-muted-foreground">
-            <tr><th>#</th><th>Rule</th><th>Status</th><th>Expected</th><th>Actual</th><th>Message</th></tr>
+            <tr><th className="w-12">#</th><th className="w-[210px]">Rule</th><th className="w-[90px]">Status</th><th className="w-[200px]">Expected</th><th className="w-[200px]">Actual</th><th>Message</th></tr>
           </thead>
           <tbody>
             {rules.map((r) => {
@@ -323,9 +323,9 @@ function RulesTable({ rules, deciding }: { rules: Rule[]; deciding: string[] }) 
                     <div className="font-mono text-xs text-muted-foreground">{r.rule_name}</div>
                   </td>
                   <td><span className={`decision-badge ${badge(r.status)}`}>{r.status}</span></td>
-                  <td className="break-all font-mono text-xs">{show(r.expected_value)}</td>
-                  <td className="break-all font-mono text-xs">{show(r.actual_value)}</td>
-                  <td>{r.message ?? "—"}</td>
+                  <td className="whitespace-pre-wrap break-words font-mono text-xs">{show(r.expected_value)}</td>
+                  <td className="whitespace-pre-wrap break-words font-mono text-xs">{show(r.actual_value)}</td>
+                  <td className="break-words">{r.message ?? "—"}</td>
                 </tr>
               );
             })}
