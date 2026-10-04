@@ -20,6 +20,13 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
+type ReviewAction = {
+  action: "approve" | "reject";
+  reviewer: string;
+  reason: string;
+  created_at: string;
+};
+
 type Run = {
   id: string;
   file_name: string;
@@ -35,13 +42,34 @@ type Run = {
   po_printed: string | null;
   vendors: { name: string } | null;
   purchase_orders: { po_number: string } | null;
+  review_actions: ReviewAction | null;
 };
 
 type ApiState = "waking" | "online" | "unreachable";
 
+// The final status a reviewer cares about, not just the automated decision:
+//   - a human action always wins over the automated decision
+//   - otherwise APPROVE/REJECT stand as-is, and REVIEW becomes "needs review"
+//   - queued / running / failed / no decision yet -> null (shown only under "All")
+type FinalStatus = "APPROVED" | "NEEDS_REVIEW" | "REJECTED" | null;
+
+function finalStatus(run: Run): FinalStatus {
+  const human = run.review_actions;
+  if (human?.action === "approve") return "APPROVED";
+  if (human?.action === "reject") return "REJECTED";
+  if (run.decision === "APPROVE") return "APPROVED";
+  if (run.decision === "REJECT") return "REJECTED";
+  if (run.decision === "REVIEW") return "NEEDS_REVIEW";
+  return null;
+}
+
+const humanLabel = (a: ReviewAction["action"]) => (a === "approve" ? "APPROVED" : "REJECTED");
+const humanTone = (a: ReviewAction["action"]) => (a === "approve" ? "text-approve" : "text-reject");
+
 // Columns for the run history. The arrows read single values out of the run's
 // standardized invoice (JSON); vendors(...) and purchase_orders(...) join the matched
-// vendor and PO. All read-only, with the public browser key.
+// vendor and PO; review_actions(...) is the (at most one) human resolution of a REVIEW
+// run. All read-only, with the public browser key.
 const RUN_COLUMNS = [
   "id", "file_name", "status", "decision", "summary", "error", "match_type", "created_at",
   "invoice_number:normalized_json->>invoice_number_raw",
@@ -50,6 +78,7 @@ const RUN_COLUMNS = [
   "po_printed:normalized_json->>po_number",
   "vendors(name)",
   "purchase_orders(po_number)",
+  "review_actions(action,reviewer,reason,created_at)",
 ].join(",");
 
 async function errorDetail(response: Response) {
@@ -88,7 +117,7 @@ function Dashboard() {
   const [runsError, setRunsError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [filter, setFilter] = useState<"ALL" | "APPROVE" | "REVIEW" | "REJECT" | "FAILED">("ALL");
+  const [filter, setFilter] = useState<"ALL" | "APPROVED" | "NEEDS_REVIEW" | "REJECTED">("ALL");
   const [query, setQuery] = useState("");
 
   const checkHealth = useCallback(async () => {
@@ -122,6 +151,7 @@ function Dashboard() {
     const channel = supabase
       .channel("runs-dashboard")
       .on("postgres_changes", { event: "*", schema: "public", table: "runs" }, () => void loadRuns())
+      .on("postgres_changes", { event: "*", schema: "public", table: "review_actions" }, () => void loadRuns())
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
@@ -150,20 +180,21 @@ function Dashboard() {
     }
   };
 
-  const counts = useMemo(
-    () => ({
-      APPROVE: runs.filter((run) => run.decision === "APPROVE").length,
-      REVIEW: runs.filter((run) => run.decision === "REVIEW").length,
-      REJECT: runs.filter((run) => run.decision === "REJECT").length,
-      FAILED: runs.filter((run) => run.status === "failed").length,
-    }),
-    [runs],
-  );
+  const counts = useMemo(() => {
+    const result = { APPROVED: 0, NEEDS_REVIEW: 0, REJECTED: 0 };
+    for (const run of runs) {
+      const status = finalStatus(run);
+      if (status === "APPROVED") result.APPROVED += 1;
+      else if (status === "NEEDS_REVIEW") result.NEEDS_REVIEW += 1;
+      else if (status === "REJECTED") result.REJECTED += 1;
+    }
+    return result;
+  }, [runs]);
 
   const visibleRuns = useMemo(() => {
     const q = query.trim();
     return runs.filter((run) => {
-      if (filter === "FAILED" ? run.status !== "failed" : filter !== "ALL" && run.decision !== filter) return false;
+      if (filter !== "ALL" && finalStatus(run) !== filter) return false;
       return !q || matchesQuery(run, q);
     });
   }, [runs, filter, query]);
@@ -221,7 +252,7 @@ function Dashboard() {
           <div className="mb-5 flex items-end justify-between"><div><p className="section-kicker">Latest activity</p><h2 id="history-title" className="section-title">Run history</h2></div><span className="text-xs text-muted-foreground">Last 50 runs · live</span></div>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-2" role="group" aria-label="Filter runs">
-              {([["ALL", "All", runs.length], ["APPROVE", "Approve", counts.APPROVE], ["REVIEW", "Review", counts.REVIEW], ["REJECT", "Reject", counts.REJECT], ["FAILED", "Failed", counts.FAILED]] as const).map(([key, label, n]) => (
+              {([["ALL", "All", runs.length], ["APPROVED", "Approved", counts.APPROVED], ["NEEDS_REVIEW", "Needs review", counts.NEEDS_REVIEW], ["REJECTED", "Rejected", counts.REJECTED]] as const).map(([key, label, n]) => (
                 <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)} className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors ${filter === key ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface hover:bg-muted"}`}>
                   {label}<span className="font-mono opacity-75">{n}</span>
                 </button>
@@ -246,7 +277,7 @@ function Dashboard() {
                         <td className="whitespace-nowrap font-mono text-xs">{run.invoice_number ?? <span className="text-muted-foreground">—</span>}</td>
                         <td className="whitespace-nowrap font-mono text-xs"><PoCell run={run} /></td>
                         <td><span className={`run-status run-${run.status}`}>{run.status}</span></td>
-                        <td><DecisionBadge decision={run.decision} /></td>
+                        <td><DecisionCell run={run} /></td>
                         <td><span className="block max-w-[360px] truncate text-muted-foreground" title={run.summary || run.error || ""}>{run.summary || run.error || "—"}</span></td>
                       </tr>
                     ))}
@@ -287,4 +318,21 @@ function PoCell({ run }: { run: Run }) {
 
 function DecisionBadge({ decision }: { decision: Run["decision"] }) {
   return <span className={`decision-badge decision-${decision?.toLowerCase() || "none"}`}>{decision || "NONE"}</span>;
+}
+
+// The automated decision, plus (only if a human has resolved this REVIEW run) a second
+// line showing what the human decided and who decided it. The automated decision badge
+// never changes; this just adds what happened after it.
+function DecisionCell({ run }: { run: Run }) {
+  const human = run.review_actions;
+  return (
+    <div className="flex flex-col gap-1">
+      <DecisionBadge decision={run.decision} />
+      {human && (
+        <span className={`text-[0.68rem] font-semibold ${humanTone(human.action)}`}>
+          → {humanLabel(human.action)} by {human.reviewer}
+        </span>
+      )}
+    </div>
+  );
 }
