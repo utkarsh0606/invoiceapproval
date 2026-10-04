@@ -210,7 +210,8 @@ function Dashboard() {
               <p className="mt-1 text-sm text-muted-foreground">PDF invoice in → APPROVE / REVIEW / REJECT with reasons out</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+          <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
+            <Link to="/ledger" className="text-sm font-medium text-primary hover:underline">View Ledger →</Link>
             <span className={`status-pill api-${apiState}`}>
               <StatusDot state={apiState} />
               {apiState === "waking" ? "API waking up..." : apiState === "online" ? "API online" : "API unreachable"}
