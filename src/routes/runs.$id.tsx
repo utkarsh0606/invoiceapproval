@@ -136,8 +136,8 @@ function RunPage() {
     <main className="min-h-screen bg-background px-5 py-10 text-foreground sm:px-8 lg:px-12 lg:py-14">
       <div className="mx-auto max-w-5xl">
         <div className="flex items-center justify-between gap-4">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"><ArrowLeft className="size-4" />Back to dashboard</Link>
-          <button onClick={() => void refreshAll()} disabled={refreshing} className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-60">
+          <Link to="/" className="group inline-flex items-center gap-2 text-sm font-medium text-link hover:underline"><ArrowLeft className="size-4 transition-transform duration-200 ease-out group-hover:-translate-x-[3px]" />Back to dashboard</Link>
+          <button onClick={() => void refreshAll()} disabled={refreshing} className="press inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-60">
             <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />Refresh
           </button>
         </div>
@@ -200,7 +200,7 @@ function PdfButton({ id }: { id: string }) {
     } finally { setBusy(false); }
   };
   return (
-    <button onClick={() => void open()} disabled={busy} className="ml-auto inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60">
+    <button onClick={() => void open()} disabled={busy} className="press ml-auto inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60">
       {busy && <LoaderCircle className="size-4 animate-spin" />}View original PDF
     </button>
   );
@@ -454,7 +454,7 @@ function StageRow({ stage, now }: { stage: Stage; now: number }) {
   else if (stage.status === "running" && stage.started_at) dur = `${Math.max(0, (now - +new Date(stage.started_at)) / 1000).toFixed(1)}s`;
   const fallback = stage.stage_name === "ai_extraction" && asObj(stage.output_data)?.["source"] === "cache_fallback";
   return (
-    <li className="border-b border-border last:border-b-0">
+    <li className={`border-b border-border last:border-b-0 ${stage.status === "running" ? "stage-live" : stage.status !== "pending" ? "stage-enter" : ""}`} style={stage.status !== "pending" && stage.status !== "running" ? { animationDelay: `${stage.stage_order * 35}ms` } : undefined}>
       <button onClick={() => setOpen(!open)} className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-muted">
         <span className="mt-0.5"><StageIcon status={stage.status} /></span>
         <div className="min-w-0 flex-1">

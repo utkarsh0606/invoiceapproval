@@ -201,7 +201,7 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-surface">
+      <header className="glass-header border-b border-border">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-6 px-5 py-7 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-12">
           <div className="flex items-center gap-4">
             <div className="brand-mark" aria-hidden="true"><span /><span /></div>
@@ -211,7 +211,7 @@ function Dashboard() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
-            <Link to="/ledger" className="text-sm font-medium text-primary hover:underline">View Ledger →</Link>
+            <Link to="/ledger" className="group inline-flex items-center gap-1 text-sm font-medium text-link hover:underline">View Ledger <span aria-hidden="true" className="inline-block transition-transform duration-200 ease-out group-hover:translate-x-[3px]">→</span></Link>
             <span className={`status-pill api-${apiState}`}>
               <StatusDot state={apiState} />
               {apiState === "waking" ? "API waking up..." : apiState === "online" ? "API online" : "API unreachable"}

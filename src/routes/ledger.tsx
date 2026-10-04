@@ -156,8 +156,8 @@ function LedgerPage() {
     <main className="min-h-screen bg-background px-5 py-10 text-foreground sm:px-8 lg:px-12 lg:py-14">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline">
-            <ArrowLeft className="size-4" /> Back to dashboard
+          <Link to="/" className="group inline-flex items-center gap-2 text-sm font-medium text-link hover:underline">
+            <ArrowLeft className="size-4 transition-transform duration-200 ease-out group-hover:-translate-x-[3px]" /> Back to dashboard
           </Link>
           <div className="flex items-center gap-3">
             <label className="relative block sm:w-80">
@@ -174,7 +174,7 @@ function LedgerPage() {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
+              className="press inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
             >
               <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
             </button>
@@ -238,7 +238,7 @@ function LedgerPage() {
                                   <button
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); setQuery(vName); }}
-                                    className="text-left font-medium text-primary hover:underline"
+                                    className="text-left font-medium text-link hover:underline"
                                     title="Filter by this vendor"
                                   >
                                     {vName}
@@ -254,7 +254,7 @@ function LedgerPage() {
                                   <button
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); setQuery(poNum); }}
-                                    className="text-primary hover:underline"
+                                    className="text-link hover:underline"
                                     title="Filter by this PO"
                                   >
                                     {poNum}
@@ -316,12 +316,12 @@ function LedgerPage() {
                           return (
                             <tr key={po.id} className="border-b border-border/70 last:border-0 hover:bg-muted/30">
                               <td className="whitespace-nowrap font-mono font-medium">
-                                <button type="button" onClick={() => setQuery(po.po_number)} className="text-primary hover:underline" title="Filter by this PO">
+                                <button type="button" onClick={() => setQuery(po.po_number)} className="text-link hover:underline" title="Filter by this PO">
                                   {po.po_number}
                                 </button>
                               </td>
                               <td>
-                                <button type="button" onClick={() => setQuery(vName)} className="text-left text-primary hover:underline" title="Filter by this vendor">
+                                <button type="button" onClick={() => setQuery(vName)} className="text-left text-link hover:underline" title="Filter by this vendor">
                                   {vName}
                                 </button>
                               </td>

@@ -27,6 +27,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-link: var(--link);
   --color-approve: var(--approve);
   --color-review: var(--review);
   --color-reject: var(--reject);
@@ -40,24 +41,28 @@
   --color-running: var(--running);
 }
 
+/* Palette inspired by zamp.ai: light grey page, near-white cards, soft-black text,
+   electric blue for links and focus only. Decision colours (approve / review / reject)
+   are deliberately unchanged so statuses stay instantly readable. */
 :root {
   --radius: 0.5rem;
-  --background: oklch(0.965 0.002 286);
-  --foreground: oklch(0.16 0.006 286);
-  --surface: oklch(0.99 0.001 286);
-  --card: oklch(0.99 0.001 286);
-  --card-foreground: oklch(0.16 0.006 286);
+  --background: #efefef;
+  --foreground: #302f37;
+  --surface: #fdfdfd;
+  --card: #fdfdfd;
+  --card-foreground: #302f37;
   --primary: oklch(0.19 0.01 286);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.92 0.006 286);
-  --secondary-foreground: oklch(0.2 0.01 286);
-  --muted: oklch(0.94 0.004 286);
-  --muted-foreground: oklch(0.47 0.01 286);
-  --accent: oklch(0.75 0.16 173);
-  --accent-foreground: oklch(0.16 0.02 173);
-  --border: oklch(0.86 0.006 286);
-  --input: oklch(0.86 0.006 286);
-  --ring: oklch(0.4 0.02 286);
+  --secondary: #e4e4e4;
+  --secondary-foreground: #302f37;
+  --muted: #e9e9e9;
+  --muted-foreground: #6b665e;
+  --accent: #005eff;
+  --accent-foreground: #ffffff;
+  --border: #d9d9d9;
+  --input: #cbcbcb;
+  --ring: #005eff;
+  --link: #005eff;
   --approve: oklch(0.53 0.15 151);
   --review: oklch(0.68 0.15 72);
   --reject: oklch(0.56 0.2 27);
@@ -75,12 +80,13 @@
   * { border-color: var(--color-border); }
   html { font-family: var(--font-sans); }
   body { margin: 0; background: var(--color-background); color: var(--color-foreground); letter-spacing: 0; }
+  h1, h2, h3 { letter-spacing: -0.03em; }
   button, a { -webkit-tap-highlight-color: transparent; }
   th, td { padding: 0.85rem 1rem; }
 }
 
-@utility section-kicker { font-family: var(--font-mono); font-size: 0.68rem; line-height: 1rem; text-transform: uppercase; color: var(--color-muted-foreground); }
-@utility section-title { margin-top: 0.2rem; font-family: var(--font-display); font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
+@utility section-kicker { font-family: var(--font-mono); font-size: 0.68rem; line-height: 1rem; text-transform: uppercase; letter-spacing: -0.02em; color: var(--color-muted-foreground); }
+@utility section-title { margin-top: 0.2rem; font-family: var(--font-display); font-size: 1.5rem; line-height: 2rem; font-weight: 600; letter-spacing: -0.04em; }
 @utility brand-mark {
   position: relative; width: 2rem; height: 2rem; flex-shrink: 0;
   & span { position: absolute; left: 0.15rem; width: 1.55rem; height: 0.48rem; background: var(--color-primary); transform: skew(-26deg); }
@@ -93,11 +99,11 @@
 @utility api-online { background: color-mix(in oklab, var(--color-approve) 15%, transparent); color: color-mix(in oklab, var(--color-approve) 76%, black); }
 @utility api-unreachable { background: color-mix(in oklab, var(--color-reject) 13%, transparent); color: var(--color-reject); }
 @utility drop-zone {
-  display: flex; min-height: 8.4rem; width: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 0.45rem; border: 1px dashed var(--color-border); border-radius: var(--radius); background: var(--color-background); padding: 1.25rem; transition: border-color 150ms, background 150ms;
-  &:hover, &:focus-visible { border-color: var(--color-primary); outline: none; }
+  display: flex; min-height: 8.4rem; width: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 0.45rem; border: 1px dashed var(--color-input); border-radius: var(--radius); background: var(--color-background); padding: 1.25rem; transition: border-color 150ms, background 150ms;
+  &:hover, &:focus-visible { border-color: var(--color-link); outline: none; }
   &:disabled { opacity: 0.55; cursor: not-allowed; }
 }
-@utility drop-zone-active { border-color: var(--color-primary); background: var(--color-muted); }
+@utility drop-zone-active { border-color: var(--color-link); background: var(--color-muted); }
 @utility count-card { display: flex; min-height: 6.5rem; flex-direction: column; justify-content: space-between; border: 1px solid var(--color-border); border-top-width: 3px; border-radius: var(--radius); background: var(--color-surface); padding: 1rem 1.15rem; }
 @utility count-approve { border-top-color: var(--color-approve); }
 @utility count-review { border-top-color: var(--color-review); }
@@ -115,3 +121,40 @@
 @utility run-failed { color: var(--color-reject); &::before { background: var(--color-neutral-status); } }
 @utility signal-badge { border: 1px solid var(--color-border); border-radius: 0.25rem; background: var(--color-muted); padding: 0.15rem 0.35rem; font-family: var(--font-mono); font-size: 0.62rem; color: var(--color-muted-foreground); }
 @utility error-inline { display: flex; min-height: 3.5rem; align-items: center; justify-content: space-between; gap: 1rem; border-left: 3px solid var(--color-reject); background: color-mix(in oklab, var(--color-reject) 7%, transparent); padding: 0.75rem 1rem; font-size: 0.8rem; color: var(--color-reject); }
+
+/* ---------- Zamp-style micro-interactions (opt-in classes) ---------- */
+
+/* "Scale & squish": buttons grow slightly on hover and press in on click. */
+@utility press {
+  transition: transform 200ms ease-out, background-color 200ms ease-out, opacity 200ms ease-out;
+  &:hover:not(:disabled) { transform: scale(1.03); }
+  &:active:not(:disabled) { transform: scale(0.98); }
+}
+
+/* Frosted-glass sticky header. */
+@utility glass-header {
+  position: sticky; top: 0; z-index: 40;
+  background: color-mix(in oklab, var(--color-background) 75%, transparent);
+  -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+}
+
+/* ---------- Run page: stages animate in as they finish ---------- */
+
+@keyframes stage-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes stage-glow {
+  0%, 100% { background: transparent; }
+  50% { background: color-mix(in oklab, var(--color-running) 8%, transparent); }
+}
+
+/* A finished stage (done / warn / failed / skipped) fades and slides in once. */
+@utility stage-enter { animation: stage-in 420ms ease-out both; }
+/* The stage that is running right now glows softly. */
+@utility stage-live { animation: stage-glow 1.6s ease-in-out infinite; box-shadow: inset 3px 0 0 var(--color-running); }
+
+/* Respect the operating-system "reduce motion" setting: no movement at all. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
