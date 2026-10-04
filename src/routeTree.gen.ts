@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LedgerRouteImport } from './routes/ledger'
 import { Route as RunsIdRouteImport } from './routes/runs.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LedgerRoute = LedgerRouteImport.update({
+  id: '/ledger',
+  path: '/ledger',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RunsIdRoute = RunsIdRouteImport.update({
@@ -25,27 +31,31 @@ const RunsIdRoute = RunsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ledger': typeof LedgerRoute
   '/runs/$id': typeof RunsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ledger': typeof LedgerRoute
   '/runs/$id': typeof RunsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ledger': typeof LedgerRoute
   '/runs/$id': typeof RunsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/runs/$id'
+  fullPaths: '/' | '/ledger' | '/runs/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/runs/$id'
-  id: '__root__' | '/' | '/runs/$id'
+  to: '/' | '/ledger' | '/runs/$id'
+  id: '__root__' | '/' | '/ledger' | '/runs/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LedgerRoute: typeof LedgerRoute
   RunsIdRoute: typeof RunsIdRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ledger': {
+      id: '/ledger'
+      path: '/ledger'
+      fullPath: '/ledger'
+      preLoaderRoute: typeof LedgerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/runs/$id': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LedgerRoute: LedgerRoute,
   RunsIdRoute: RunsIdRoute,
 }
 export const routeTree = rootRouteImport
