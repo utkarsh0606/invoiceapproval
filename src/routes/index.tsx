@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LoaderCircle, RefreshCw, Search, UploadCloud } from "lucide-react";
+import { ChevronDown, LoaderCircle, RefreshCw, Search, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { API_BASE_URL } from "@/config";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,6 +106,12 @@ function matchesQuery(run: Run, query: string): boolean {
   });
 }
 
+const MAX_RUNS = 500;
+const PAGE_SIZE = 25;
+
+// The vendor name shown in the table: the matched vendor, else what the AI read.
+const runVendor = (run: Run): string | null => run.vendors?.name ?? run.vendor_raw ?? null;
+
 const fmtWhen = (s: string) =>
   new Date(s).toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -119,6 +125,9 @@ function Dashboard() {
   const [dragging, setDragging] = useState(false);
   const [filter, setFilter] = useState<"ALL" | "APPROVED" | "NEEDS_REVIEW" | "REJECTED">("ALL");
   const [query, setQuery] = useState("");
+  const [vendorFilter, setVendorFilter] = useState("ALL");
+  const [newestFirst, setNewestFirst] = useState(true);
+  const [page, setPage] = useState(1);
 
   const checkHealth = useCallback(async () => {
     setApiState("waking");
@@ -136,7 +145,7 @@ function Dashboard() {
       .from("runs")
       .select(RUN_COLUMNS)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(MAX_RUNS);
     if (error) {
       setRunsError(error.message);
       return;
@@ -181,23 +190,44 @@ function Dashboard() {
   };
 
   const counts = useMemo(() => {
-    const result = { APPROVED: 0, NEEDS_REVIEW: 0, REJECTED: 0 };
+    const result = { ALL: 0, APPROVED: 0, NEEDS_REVIEW: 0, REJECTED: 0 };
+    const q = query.trim();
     for (const run of runs) {
+      // Counts follow the vendor dropdown and the search box (not the status chips).
+      if (vendorFilter !== "ALL" && runVendor(run) !== vendorFilter) continue;
+      if (q && !matchesQuery(run, q)) continue;
+      result.ALL += 1;
       const status = finalStatus(run);
       if (status === "APPROVED") result.APPROVED += 1;
       else if (status === "NEEDS_REVIEW") result.NEEDS_REVIEW += 1;
       else if (status === "REJECTED") result.REJECTED += 1;
     }
     return result;
-  }, [runs]);
+  }, [runs, vendorFilter, query]);
+
+  const vendorOptions = useMemo(
+    () => Array.from(new Set(runs.map(runVendor).filter((v): v is string => !!v))).sort((a, b) => a.localeCompare(b)),
+    [runs],
+  );
 
   const visibleRuns = useMemo(() => {
     const q = query.trim();
-    return runs.filter((run) => {
+    const filtered = runs.filter((run) => {
       if (filter !== "ALL" && finalStatus(run) !== filter) return false;
+      if (vendorFilter !== "ALL" && runVendor(run) !== vendorFilter) return false;
       return !q || matchesQuery(run, q);
     });
-  }, [runs, filter, query]);
+    return filtered.sort((a, b) =>
+      newestFirst ? b.created_at.localeCompare(a.created_at) : a.created_at.localeCompare(b.created_at));
+  }, [runs, filter, vendorFilter, query, newestFirst]);
+
+  // Any change to what is shown starts again at page 1.
+  useEffect(() => { setPage(1); }, [filter, vendorFilter, query, newestFirst]);
+
+  const pageCount = Math.max(1, Math.ceil(visibleRuns.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageRuns = visibleRuns.slice(pageStart, pageStart + PAGE_SIZE);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -207,20 +237,11 @@ function Dashboard() {
             <div className="brand-mark" aria-hidden="true"><span /><span /></div>
             <div>
               <h1 className="font-display text-2xl font-semibold sm:text-3xl">Invoice Decision Agent</h1>
-              <p className="mt-1 text-sm text-muted-foreground">PDF invoice in → APPROVE / REVIEW / REJECT with reasons out</p>
+              <p className="mt-1 text-sm text-muted-foreground">Turn invoices into clear, explainable decisions.</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
             <Link to="/ledger" className="group inline-flex items-center gap-1 text-sm font-medium text-link hover:underline">View Ledger <span aria-hidden="true" className="inline-block transition-transform duration-200 ease-out group-hover:translate-x-[3px]">→</span></Link>
-            <span className={`status-pill api-${apiState}`}>
-              <StatusDot state={apiState} />
-              {apiState === "waking" ? "API waking up..." : apiState === "online" ? "API online" : "API unreachable"}
-            </span>
-            {apiState === "unreachable" && (
-              <Button variant="outline" size="sm" onClick={() => void checkHealth()}>
-                <RefreshCw className="size-3.5" /> Retry
-              </Button>
-            )}
           </div>
         </div>
       </header>
@@ -250,27 +271,36 @@ function Dashboard() {
         </section>
 
         <section className="mt-10" aria-labelledby="history-title">
-          <div className="mb-5 flex items-end justify-between"><div><p className="section-kicker">Latest activity</p><h2 id="history-title" className="section-title">Run history</h2></div><span className="text-xs text-muted-foreground">Last 50 runs · live</span></div>
+          <div className="mb-5 flex items-end justify-between"><div><p className="section-kicker">Latest activity</p><h2 id="history-title" className="section-title">Run history</h2></div><span className="text-xs text-muted-foreground">{runs.length} runs loaded · live</span></div>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-2" role="group" aria-label="Filter runs">
-              {([["ALL", "All", runs.length], ["APPROVED", "Approved", counts.APPROVED], ["NEEDS_REVIEW", "Needs review", counts.NEEDS_REVIEW], ["REJECTED", "Rejected", counts.REJECTED]] as const).map(([key, label, n]) => (
+              {([["ALL", "All", counts.ALL], ["APPROVED", "Approved", counts.APPROVED], ["NEEDS_REVIEW", "Needs review", counts.NEEDS_REVIEW], ["REJECTED", "Rejected", counts.REJECTED]] as const).map(([key, label, n]) => (
                 <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)} className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors ${filter === key ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface hover:bg-muted"}`}>
                   {label}<span className="font-mono opacity-75">{n}</span>
                 </button>
               ))}
             </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative">
+            <select value={vendorFilter} onChange={(e) => setVendorFilter(e.target.value)} aria-label="Filter by vendor" className="h-9 w-full min-w-[13rem] cursor-pointer appearance-none rounded-md border border-input bg-surface pl-3 pr-9 text-sm font-medium text-foreground transition-colors hover:border-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="ALL">All vendors</option>
+              {vendorOptions.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            </div>
             <label className="relative block sm:w-96">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search vendor, invoice no., PO, file or summary" aria-label="Search runs" className="h-9 w-full rounded-md border border-input bg-surface pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </label>
+            </div>
           </div>
           <div className="overflow-hidden rounded-lg border border-border bg-surface">
             {runsError ? <div className="error-inline m-5"><span>{runsError}</span><Button size="sm" variant="outline" onClick={() => void loadRuns()}>Retry</Button></div> : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
-                  <thead><tr className="border-b border-border bg-muted/60 text-[11px] uppercase text-muted-foreground"><th>Time</th><th>File name</th><th>Vendor</th><th>Invoice no.</th><th>PO</th><th>Status</th><th>Decision</th><th>Summary</th></tr></thead>
+                  <thead><tr className="border-b border-border bg-muted/60 text-[11px] uppercase text-muted-foreground"><th><button type="button" onClick={() => setNewestFirst((v) => !v)} className="inline-flex items-center gap-1 uppercase hover:text-foreground" title={newestFirst ? "Newest first: click for oldest first" : "Oldest first: click for newest first"}>Time {newestFirst ? "↓" : "↑"}</button></th><th>File name</th><th>Vendor</th><th>Invoice no.</th><th>PO</th><th>Status</th><th>Decision</th><th>Summary</th></tr></thead>
                   <tbody>
-                    {visibleRuns.length === 0 ? <tr><td colSpan={8} className="h-28 text-center text-muted-foreground">{runs.length === 0 ? "No runs found" : "No runs match these filters"}</td></tr> : visibleRuns.map((run) => (
+                    {visibleRuns.length === 0 ? <tr><td colSpan={8} className="h-28 text-center text-muted-foreground">{runs.length === 0 ? "No runs found" : "No runs match these filters"}</td></tr> : pageRuns.map((run) => (
                       <tr key={run.id} tabIndex={0} className="cursor-pointer border-b border-border/70 transition-colors last:border-0 hover:bg-muted/45 focus-visible:bg-muted focus-visible:outline-none" onClick={() => void navigate({ to: "/runs/$id", params: { id: run.id } })} onKeyDown={(event) => { if (event.key === "Enter") void navigate({ to: "/runs/$id", params: { id: run.id } }); }}>
                         <td className="whitespace-nowrap font-mono text-xs text-muted-foreground">{fmtWhen(run.created_at)}</td>
                         <td><span className="block max-w-48 truncate font-medium" title={run.file_name}>{run.file_name}</span></td>
@@ -287,6 +317,16 @@ function Dashboard() {
               </div>
             )}
           </div>
+          {visibleRuns.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, visibleRuns.length)} of {visibleRuns.length}</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
+                <span className="font-mono">Page {currentPage} of {pageCount}</span>
+                <Button variant="outline" size="sm" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
         </section>
       </main>
     </div>

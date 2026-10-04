@@ -47,7 +47,6 @@ export function InvoiceDetails({ outputs }: { outputs: Record<string, unknown> }
 
 function ReadCard({ text: tx, ai, norm }: { text: O | null; ai: O | null; norm: O | null }) {
   const [showCase, setShowCase] = useState(false);
-  const [showText, setShowText] = useState(false);
   const ex = obj(ai?.["extracted"]);
   const source = text(ai?.["source"]);
   const sourceLabel: Record<string, string> = { gemini: "Read live by the AI", cache: "Saved AI reading of this exact file", cache_fallback: "AI unavailable - saved reading used" };
@@ -158,14 +157,6 @@ function ReadCard({ text: tx, ai, norm }: { text: O | null; ai: O | null; norm: 
             )}
           </div>
 
-          <div>
-            <button onClick={() => setShowText(!showText)} className="text-xs font-medium text-primary hover:underline">{showText ? "Hide" : "Show"} text layer preview</button>
-            {showText && (
-              !tx ? <NA /> : tx["path"] === "vision" ? <p className="mt-2 text-muted-foreground">No text layer (scanned image)</p> : (
-                <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-code p-3 font-mono text-xs leading-5 text-code-foreground">{text(tx["text_preview"]) ?? "(empty)"}</pre>
-              )
-            )}
-          </div>
         </>
       )}
     </Card>
@@ -205,12 +196,6 @@ function MatchCard({ match, norm }: { match: O | null; norm: O | null }) {
           {vMethod === "none" && <Tag tone="reject">not found</Tag>}
           {vendor && !isNil(vendor["status"]) && <Tag tone={vendor["status"] === "active" ? "approve" : "reject"}>{String(vendor["status"])}</Tag>}
         </div>
-        {vMethod === "none" && candidates.length > 0 && (
-          <div className="mt-3">
-            <p className="text-xs text-muted-foreground">Closest names</p>
-            <ul className="mt-1 space-y-0.5">{candidates.map((c, i) => <li key={i} className="flex justify-between gap-4"><span>{text(c["name"])}</span><span className="font-mono text-xs tabular-nums">{typeof c["score"] === "number" ? (c["score"] as number).toFixed(2) : text(c["score"])}</span></li>)}</ul>
-          </div>
-        )}
       </div>
 
       <div>

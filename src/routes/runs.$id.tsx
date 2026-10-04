@@ -51,6 +51,8 @@ const RULE_LABELS: Record<string, string> = {
 };
 
 // Reviewer secret and name are kept only for this browser tab (sessionStorage), never in the code.
+const STATUS_LABEL: Record<string, string> = { PASS: "PASSED", WARN: "WARNING", FAIL: "FAILED", SKIP: "SKIPPED" };
+
 const SECRET_KEY = "zampReviewerSecret";
 const NAME_KEY = "zampReviewerName";
 const MIN_REASON = 5; // the backend enforces the same minimum
@@ -171,9 +173,9 @@ function Header({ run }: { run: Run }) {
       <h1 className="mt-2 break-all font-display text-3xl font-semibold sm:text-4xl">{run.file_name ?? "Untitled file"}</h1>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <span className={`run-status run-${run.status} rounded-full border border-border bg-surface px-3 py-1 text-sm font-medium`}>{run.status}</span>
-        <span className="text-sm text-muted-foreground">Created {fmtTime(run.created_at)}</span>
+        <span className="text-sm text-muted-foreground">Created on {fmtTime(run.created_at)}</span>
         {run.extraction_path === "vision" && <span className="signal-badge">Scanned image (AI read the page image)</span>}
-        {run.used_cache && <span className="signal-badge" title="The AI's earlier reading of this exact file was reused">Saved AI reading</span>}
+        
         {run.match_type === "implied" && <span className="signal-badge">PO implied, not printed</span>}
         <PdfButton id={run.id} />
       </div>
@@ -250,7 +252,7 @@ function DecisionCard({ run, stages, explanation, action }: { run: Run; stages: 
           {check.length > 0 && (
             <div className="pt-2">
               <h3 className="text-sm font-semibold">What the reviewer should check</h3>
-              <ul className="mt-2 space-y-1.5">{check.map((c, i) => <li key={i} className="flex gap-2 text-sm"><span className="mt-0.5 size-4 shrink-0 rounded border border-foreground/50" />{show(c)}</li>)}</ul>
+              <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm">{check.map((c, i) => <li key={i}>{show(c)}</li>)}</ul>
             </div>
           )}
           {also.length > 0 && (
@@ -301,13 +303,13 @@ function ReviewPanel({ run, ledger, onResolved }: { run: Run; ledger: Ledger | n
 
   const ready = reviewer.trim().length > 0 && reason.trim().length >= MIN_REASON;
   const approveBlock = !ledger
-    ? "No ledger record (the invoice number or total is missing), so there is nothing to pay. This run can only be rejected."
+    ? "the invoice number or total is missing, so there is nothing to pay. Reject it and ask the vendor for a complete invoice."
     : ledger.status !== "review"
-      ? `The ledger invoice is already ${ledger.status}.`
+      ? `the ledger invoice is already ${ledger.status}.`
       : !ledger.vendor_id
-        ? "No known vendor is attached: an unknown payee is never paid. Onboard the vendor first, or reject."
+        ? "the vendor is not on the vendor list, and unknown payees are never paid. Reject it with a reason; once the vendor is onboarded, the invoice can be resubmitted."
         : !ledger.po_id
-          ? "No purchase order is attached. Assign the PO first, or reject."
+          ? "no purchase order is matched. Reject it with a reason; the invoice can be resubmitted with the correct PO number."
           : null;
 
   const openConfirm = (a: "approve" | "reject") => {
@@ -380,7 +382,7 @@ function ReviewPanel({ run, ledger, onResolved }: { run: Run; ledger: Ledger | n
         <Button disabled={!ready || !!approveBlock || busy} onClick={() => openConfirm("approve")}>Approve for payment</Button>
         <Button variant="destructive" disabled={!ready || busy} onClick={() => openConfirm("reject")}>Reject</Button>
       </div>
-      {approveBlock && <p className="mt-3 text-sm text-muted-foreground">Approve is not available: {approveBlock}</p>}
+      {approveBlock && <p className="mt-3 text-sm text-muted-foreground">Cannot be approved: {approveBlock}</p>}
 
       <Dialog open={pending !== null} onOpenChange={(o) => !o && !busy && setPending(null)}>
         <DialogContent>
@@ -487,9 +489,8 @@ function RulesTable({ rules, deciding }: { rules: Rule[]; deciding: string[] }) 
   const badge = (s: string) => (s === "PASS" ? "decision-approve" : s === "WARN" ? "decision-review" : s === "FAIL" ? "decision-reject" : "decision-none");
   return (
     <section className="mt-10">
-      <p className="section-kicker">Business rules</p>
-      <h2 className="section-title">Rule results</h2>
-      <p className="mt-2 text-sm text-muted-foreground">{c("PASS")} pass, {c("WARN")} warn, {c("FAIL")} fail, {c("SKIP")} not applicable</p>
+            <h2 className="section-title">Checks &amp; Results</h2>
+      <p className="mt-2 text-sm text-muted-foreground">{c("PASS")} passed, {c("WARN")} {c("WARN") === 1 ? "warning" : "warnings"}, {c("FAIL")} failed, {c("SKIP")} skipped</p>
       <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-surface">
         <table className="w-full min-w-[960px] table-fixed text-left text-sm">
           <thead className="border-b border-border bg-muted text-xs uppercase text-muted-foreground">
@@ -505,7 +506,7 @@ function RulesTable({ rules, deciding }: { rules: Rule[]; deciding: string[] }) 
                     <div className="font-medium">{RULE_LABELS[r.rule_name] ?? r.rule_name}{isDeciding && <span className="ml-2 rounded bg-primary px-1.5 py-0.5 font-mono text-[0.6rem] uppercase text-primary-foreground">deciding</span>}</div>
                     <div className="font-mono text-xs text-muted-foreground">{r.rule_name}</div>
                   </td>
-                  <td><span className={`decision-badge ${badge(r.status)}`}>{r.status}</span></td>
+                  <td><span className={`decision-badge ${badge(r.status)}`}>{STATUS_LABEL[r.status] ?? r.status}</span></td>
                   <td className="whitespace-pre-wrap break-words font-mono text-xs">{show(r.expected_value)}</td>
                   <td className="whitespace-pre-wrap break-words font-mono text-xs">{show(r.actual_value)}</td>
                   <td className="break-words">{r.message ?? "—"}</td>
