@@ -54,7 +54,14 @@ function formatAmount(value: number, currency: string | null): string {
   const abs = Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sign = n < 0 ? "-" : "";
   const isUsd = !currency || currency.toUpperCase() === "USD";
-  return isUsd ? `${sign}$${abs}` : `${sign}${abs} ${currency}`;
+  return isUsd ? `${sign}$${abs}` : `${sign}${currency} ${abs}`;
+}
+
+function shortName(full: string): string {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return full.trim();
+  const last = parts[parts.length - 1] ?? "";
+  return `${parts[0] ?? ""} ${last.charAt(0)}.`;
 }
 
 function LedgerPage() {
@@ -238,7 +245,7 @@ function LedgerPage() {
                                   <button
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); setQuery(vName); }}
-                                    className="text-left font-medium text-link hover:underline"
+                                    className="text-left font-medium text-foreground underline-offset-2 hover:underline"
                                     title="Filter by this vendor"
                                   >
                                     {vName}
@@ -254,7 +261,7 @@ function LedgerPage() {
                                   <button
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); setQuery(poNum); }}
-                                    className="text-link hover:underline"
+                                    className="text-foreground underline-offset-2 hover:underline"
                                     title="Filter by this PO"
                                   >
                                     {poNum}
@@ -265,9 +272,10 @@ function LedgerPage() {
                               </td>
                               <td>
                                 {review ? (
-                                  <span className="text-xs">
-                                    <strong className={`uppercase ${review.action === "approve" ? "text-approve" : "text-reject"}`}>{review.action}</strong> by {review.reviewer}: “{review.reason}”
-                                  </span>
+                                  <div className="flex max-w-[320px] flex-col gap-0.5" title={`${review.reviewer}: ${review.reason}`}>
+                                    <span className={`font-mono text-[11px] font-semibold uppercase tracking-[-0.04em] ${review.action === "approve" ? "text-approve" : "text-reject"}`}>{review.action === "approve" ? "Approved" : "Rejected"}</span>
+                                    <span className="truncate font-mono text-[10px] tracking-[-0.04em] text-muted-foreground"><span className="uppercase">{shortName(review.reviewer)}</span> · “{review.reason}”</span>
+                                  </div>
                                 ) : (
                                   <span className="text-xs text-muted-foreground">—</span>
                                 )}
@@ -316,12 +324,12 @@ function LedgerPage() {
                           return (
                             <tr key={po.id} className="border-b border-border/70 last:border-0 hover:bg-muted/30">
                               <td className="whitespace-nowrap font-mono font-medium">
-                                <button type="button" onClick={() => setQuery(po.po_number)} className="text-link hover:underline" title="Filter by this PO">
+                                <button type="button" onClick={() => setQuery(po.po_number)} className="text-foreground underline-offset-2 hover:underline" title="Filter by this PO">
                                   {po.po_number}
                                 </button>
                               </td>
                               <td>
-                                <button type="button" onClick={() => setQuery(vName)} className="text-left text-link hover:underline" title="Filter by this vendor">
+                                <button type="button" onClick={() => setQuery(vName)} className="text-left text-foreground underline-offset-2 hover:underline" title="Filter by this vendor">
                                   {vName}
                                 </button>
                               </td>
@@ -329,12 +337,12 @@ function LedgerPage() {
                               <td className="whitespace-nowrap text-right font-mono tabular-nums">{formatAmount(po.billed_amount, po.currency)}</td>
                               <td className="whitespace-nowrap text-right font-mono tabular-nums font-semibold">
                                 <span className={remaining < 0 ? "text-reject" : ""}>{formatAmount(remaining, po.currency)}</span>
-                                {remaining < 0 && <span className="block text-[0.65rem] font-medium text-reject">over-billed</span>}
+                                {remaining < 0 && <span className="block font-mono text-[10px] font-medium uppercase tracking-[-0.04em] text-reject/80">over-billed</span>}
                               </td>
                               <td className="whitespace-nowrap text-right font-mono tabular-nums">
                                 {inReview > 0 ? <span className="font-semibold text-review">{formatAmount(inReview, po.currency)}</span> : <span className="text-muted-foreground">—</span>}
                               </td>
-                              <td><span className="signal-badge">{po.status}</span></td>
+                              <td><span className="signal-badge uppercase tracking-[-0.04em] !text-[10px]">{po.status}</span></td>
                             </tr>
                           );
                         })

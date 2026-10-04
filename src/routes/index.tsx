@@ -324,14 +324,25 @@ function DecisionBadge({ decision }: { decision: Run["decision"] }) {
 // The automated decision, plus (only if a human has resolved this REVIEW run) a second
 // line showing what the human decided and who decided it. The automated decision badge
 // never changes; this just adds what happened after it.
+// "Utkarsh Goyal" -> "Utkarsh G." (shown uppercase by CSS); a single name stays as-is.
+function shortName(full: string): string {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return full.trim();
+  const last = parts[parts.length - 1] ?? "";
+  return `${parts[0] ?? ""} ${last.charAt(0)}.`;
+}
+
 function DecisionCell({ run }: { run: Run }) {
   const human = run.review_actions;
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col items-start gap-1">
       <DecisionBadge decision={run.decision} />
       {human && (
-        <span className={`text-[0.68rem] font-semibold ${humanTone(human.action)}`}>
-          → {humanLabel(human.action)} by {human.reviewer}
+        <span
+          className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[-0.04em] text-muted-foreground"
+          title={`${humanLabel(human.action)} by ${human.reviewer}: ${human.reason}`}
+        >
+          ↳ <span className={`font-semibold ${humanTone(human.action)}`}>{humanLabel(human.action)}</span> by {shortName(human.reviewer)}
         </span>
       )}
     </div>
