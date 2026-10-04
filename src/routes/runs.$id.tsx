@@ -236,7 +236,7 @@ function DecisionCard({ run, stages, explanation, action }: { run: Run; stages: 
     <section className={`mt-8 rounded-lg border-2 ${color} bg-surface p-6 sm:p-8`}>
       <p className="section-kicker mb-3">Automated decision</p>
       <div className="flex flex-wrap items-center gap-3">
-        <span className={`decision-badge decision-${["approve", "review", "reject"].includes(d) ? d : "none"} !min-w-0 !px-5 !py-2 !text-xl`}>{run.decision ?? "NO DECISION"}</span>
+        <span className={`decision-badge decision-${["approve", "review", "reject"].includes(d) ? d : "none"} !min-w-0 !rounded-md !px-4 !py-1.5 !text-base`}>{run.decision ?? "NO DECISION"}</span>
         {action && (
           <span className="inline-flex items-center gap-2 text-sm font-medium">
             → human decision <span className={`decision-badge ${humanTone(action.action)} !min-w-0`}>{humanLabel(action.action)}</span>
@@ -245,7 +245,7 @@ function DecisionCard({ run, stages, explanation, action }: { run: Run; stages: 
       </div>
       {explanation ? (
         <div className="mt-5 space-y-3">
-          {explanation["headline"] != null && <p className="text-lg font-bold">{String(explanation["headline"])}</p>}
+          {explanation["headline"] != null && <p className="text-lg font-bold leading-relaxed">{String(explanation["headline"])}</p>}
           {explanation["context"] != null && <p className="text-sm leading-6">{String(explanation["context"])}</p>}
           {check.length > 0 && (
             <div className="pt-2">
@@ -256,7 +256,7 @@ function DecisionCard({ run, stages, explanation, action }: { run: Run; stages: 
           {also.length > 0 && (
             <div className="pt-2">
               <h3 className="text-sm font-semibold">Also found</h3>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{also.map((c, i) => <li key={i}>{show(c)}</li>)}</ul>
+              <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-foreground/75">{also.map((c, i) => <li key={i}>{show(c)}</li>)}</ul>
             </div>
           )}
         </div>
